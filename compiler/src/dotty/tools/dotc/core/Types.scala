@@ -21,6 +21,7 @@ import util.SimpleIdentitySet
 import reporting.diagnostic.Message
 import ast.tpd._
 import ast.TreeTypeMap
+import ast.untpd
 import printing.Texts._
 import printing.Printer
 import Hashable._
@@ -36,6 +37,7 @@ import java.lang.ref.WeakReference
 
 import scala.annotation.internal.sharable
 import scala.annotation.threadUnsafe
+import dotty.tools.dotc.ast.Trees.Untyped
 
 import dotty.tools.dotc.transform.SymUtils._
 
@@ -1083,18 +1085,28 @@ object Types {
      *  re-lubbing it while allowing type parameters to be constrained further.
      *  Any remaining union types are replaced by their joins.
      *
-	   *  For instance, if `A` is an unconstrained type variable, then
+	 *  For instance, if `A` is an unconstrained type variable, then
   	 *
   	 * 	      ArrayBuffer[Int] | ArrayBuffer[A]
   	 *
      *  is approximated by constraining `A` to be =:= to `Int` and returning `ArrayBuffer[Int]`
      *  instead of `ArrayBuffer[? >: Int | A <: Int & A]`
+     *
+     *  The exception to this rule is when there is a type ascription with an explicit union type.
+     *
      */
     def widenUnion(implicit ctx: Context): Type = widen match {
       case tp @ OrType(tp1, tp2) =>
         if tp1.isNull || tp2.isNull then tp
         else ctx.typeComparer.lub(tp1.widenUnion, tp2.widenUnion, canConstrain = true) match {
-          case union: OrType => union.join
+          case union: OrType =>
+                val keepUnion = ctx.tree match {
+                  case DefDef(_, _, _, untpd.TypedSplice(_), _)   => true
+                  case ValDef(name, untpd.InfixOp(_, op, _), rhs) => op.symbol == ctx.definitions.orType
+                  case _                                          => false
+                }
+                if (keepUnion) union else union.join
+
           case res => res
         }
       case tp @ AndType(tp1, tp2) =>
