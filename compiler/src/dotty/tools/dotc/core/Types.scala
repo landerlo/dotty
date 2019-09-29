@@ -36,6 +36,8 @@ import java.lang.ref.WeakReference
 
 import scala.annotation.internal.sharable
 import scala.annotation.threadUnsafe
+import dotty.tools.dotc.ast.Trees.Untyped
+import dotty.tools.dotc.ast.untpd.TypedSplice
 
 import dotty.tools.dotc.transform.SymUtils._
 
@@ -1093,7 +1095,20 @@ object Types {
       case tp @ OrType(tp1, tp2) =>
         if tp1.isNull || tp2.isNull then tp
         else ctx.typeComparer.lub(tp1.widenUnion, tp2.widenUnion, canConstrain = true) match {
-          case union: OrType => union.join
+          case union: OrType =>
+                val keep = ctx.tree match {
+                  case dd: DefDef if dd.tpt.isInstanceOf[TypedSplice] => true
+                  case vd: ValDef =>
+                          vd.tpt match {
+                            case io: dotty.tools.dotc.ast.untpd.InfixOp =>
+                              io.op.symbol == ctx.definitions.orType
+                            case _ => false
+                          }
+                  case _ => false
+                }
+                if (keep) union else union.join
+
+
           case res => res
         }
       case tp @ AndType(tp1, tp2) =>
