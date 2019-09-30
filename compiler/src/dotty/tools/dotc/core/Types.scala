@@ -1096,18 +1096,12 @@ object Types {
         if tp1.isNull || tp2.isNull then tp
         else ctx.typeComparer.lub(tp1.widenUnion, tp2.widenUnion, canConstrain = true) match {
           case union: OrType =>
-                val keep = ctx.tree match {
-                  case dd: DefDef if dd.tpt.isInstanceOf[TypedSplice] => true
-                  case vd: ValDef =>
-                          vd.tpt match {
-                            case io: dotty.tools.dotc.ast.untpd.InfixOp =>
-                              io.op.symbol == ctx.definitions.orType
-                            case _ => false
-                          }
-                  case _ => false
+                val keepUnion = ctx.tree match {
+                  case dd: DefDef                                     => dd.tpt.isInstanceOf[TypedSplice]
+                  case ValDef(name, ast.untpd.InfixOp(_, op, _), rhs) => op.symbol == ctx.definitions.orType
+                  case _                                              => false
                 }
-                if (keep) union else union.join
-
+                if (keepUnion) union else union.join
 
           case res => res
         }
