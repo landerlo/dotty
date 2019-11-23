@@ -699,9 +699,10 @@ class Namer { typer: Typer =>
 
       for (cdef @ TypeDef(name, _) <- classDef.values)
         moduleDef.getOrElse(name.moduleClassName, EmptyTree) match {
-          case t: TypeDef =>
+          case t: TypeDef   =>
             createLinks(cdef, t)
-          case EmptyTree =>
+          case EmptyTree    =>
+          case Thicket(_) =>  
         }
 
       // If a top-level object or class has no companion in the current run, we
